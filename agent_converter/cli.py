@@ -22,7 +22,7 @@ except ImportError:
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Convert agent configuration between Gemini, OpenCode, Qwen, and Kilo formats.",
+        description="Convert agent configuration between Gemini, OpenCode, Qwen, Kilo, and LiteLLM ConfigMap formats.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -65,13 +65,13 @@ Examples:
     
     parser.add_argument(
         "-t", "--target",
-        choices=["gemini", "opencode", "qwen", "kilo", "nanobot", "hermes"],
-        help="Target format (required unless using --diff)"
+        choices=["gemini", "opencode", "qwen", "kilo", "nanobot", "hermes", "configmappo"],
+        help="Target format (required unless using --diff). Note: configmappo is models-only (YAML output)"
     )
-    
+
     parser.add_argument(
         "-s", "--source",
-        choices=["gemini", "opencode", "qwen", "kilo", "nanobot", "hermes", "auto"],
+        choices=["gemini", "opencode", "qwen", "kilo", "nanobot", "hermes", "configmappo", "auto"],
         default="auto",
         help="Source format (default: auto-detect)"
     )
@@ -251,12 +251,16 @@ def run_conversion_mode(args: argparse.Namespace) -> int:
         return 1
 
     # Output result
-    # Hermes format uses YAML, others use JSON
-    if target_format == "hermes":
+    # Hermes and ConfigMap formats use YAML, others use JSON
+    if target_format in ["hermes", "configmappo"]:
         if YAML_AVAILABLE:
-            output_json = yaml.dump(result, default_flow_style=False, sort_keys=False, allow_unicode=True)
+            # For configmappo, result is already a YAML string
+            if target_format == "configmappo" and isinstance(result, str):
+                output_json = result
+            else:
+                output_json = yaml.dump(result, default_flow_style=False, sort_keys=False, allow_unicode=True)
         else:
-            print("Warning: PyYAML not installed, falling back to JSON output for Hermes", file=sys.stderr)
+            print("Warning: PyYAML not installed, falling back to JSON output", file=sys.stderr)
             output_json = json.dumps(result, indent=2)
     else:
         output_json = json.dumps(result, indent=2)
@@ -266,8 +270,8 @@ def run_conversion_mode(args: argparse.Namespace) -> int:
         print(output_json)
     else:
         try:
-            # For Hermes, write YAML directly instead of using save_json_file
-            if target_format == "hermes":
+            # For Hermes and ConfigMap, write YAML directly instead of using save_json_file
+            if target_format in ["hermes", "configmappo"]:
                 with open(args.output, "w") as f:
                     f.write(output_json)
             else:

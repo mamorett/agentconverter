@@ -26,6 +26,8 @@ def convert_full_file(data: dict, source_format: str, target_format: str) -> dic
         return convert_to_nanobot(data, source_format)
     elif target_format == "hermes":
         return convert_to_hermes(data, source_format)
+    elif target_format == "configmappo":
+        return convert_to_configmappo(data, source_format)
     else:
         raise ValueError(f"Unknown target format: {target_format}")
 
@@ -305,6 +307,12 @@ def convert_to_hermes(data: dict, source_format: str) -> dict:
     return result
 
 
+def convert_to_configmappo(data: dict, source_format: str) -> str:
+    """Convert models section to LiteLLM ConfigMap YAML format (one-way only)."""
+    # ConfigMap format is models-only, one-way conversion
+    return convert_models_to_configmappo(data, source_format, None)
+
+
 def convert_section_only(
     data: dict,
     source_format: str,
@@ -418,13 +426,15 @@ def convert_models_section(
         return convert_models_to_nanobot(data, source_format, specific_model)
     elif target_format == "hermes":
         return convert_models_to_hermes(data, source_format, specific_model)
-    
+    elif target_format == "configmappo":
+        return convert_models_to_configmappo(data, source_format, specific_model)
+
     if source_format == "gemini":
         return {}
     elif source_format == "opencode":
         models_data = data.get("provider", {})
         models_data = filter_opencode_models_by_id(models_data, specific_model)
-        
+
         if target_format == "gemini":
             return {}
         elif target_format == "opencode":
@@ -440,7 +450,7 @@ def convert_models_section(
     elif source_format == "kilo":
         models_data = data.get("provider", {})
         models_data = filter_opencode_models_by_id(models_data, specific_model)
-        
+
         if target_format == "gemini":
             return {}
         elif target_format == "opencode":
@@ -457,7 +467,7 @@ def convert_models_section(
         model_providers = data.get("modelProviders", {})
         # Note: filter_models_by_provider is not used here as it filters by provider_key, not model ID
         # Keep all providers for now
-        
+
         if target_format == "gemini":
             return {}
         elif target_format == "opencode":
@@ -468,7 +478,7 @@ def convert_models_section(
             return {"provider": provider}
         elif target_format == "qwen":
             return {"modelProviders": model_providers}
-    
+
     return {}
 
 
@@ -552,5 +562,59 @@ def convert_models_to_hermes(
             "reasoning_effort": "medium"
         }
     }
-    
+
     return result
+
+
+def convert_models_to_configmappo(
+    data: dict,
+    source_format: str,
+    specific_model: str | None = None
+) -> str:
+    """Convert models section to LiteLLM ConfigMap YAML format (one-way only)."""
+    # Get provider data based on source format
+    if source_format == "opencode":
+        provider_data = data.get("provider", {})
+        provider_data = filter_opencode_models_by_id(provider_data, specific_model)
+    elif source_format == "kilo":
+        provider_data = data.get("provider", {})
+        provider_data = filter_opencode_models_by_id(provider_data, specific_model)
+    elif source_format == "qwen":
+        model_providers = data.get("modelProviders", {})
+        # Qwen format: {provider_key: {models: [model_obj, ...]}}
+        # Group models by baseUrl for ConfigMap
+        providers_by_url = {}
+        for provider_key, provider_data_item in model_providers.items():
+            # Handle both {models: [...]} and direct list formats
+            if isinstance(provider_data_item, dict):
+                models_list = provider_data_item.get("models", [])
+            else:
+                models_list = provider_data_item
+            for model in models_list:
+                if not isinstance(model, dict):
+                    continue
+                base_url = model.get("baseUrl", "")
+                if not base_url:
+                    continue
+                if base_url not in providers_by_url:
+                    providers_by_url[base_url] = {"models": {}, "npm": "@ai-sdk/openai-compatible"}
+                model_id = model.get("id", "")
+                if specific_model and model_id != specific_model:
+                    continue
+                providers_by_url[base_url]["models"][model_id] = model
+        # Convert to provider dict format
+        provider_dict = {}
+        for idx, (base_url, info) in enumerate(providers_by_url.items()):
+            provider_name = f"provider_{idx}"
+            provider_dict[provider_name] = {
+                "models": info["models"],
+                "options": {"baseURL": base_url},
+                "npm": info["npm"]
+            }
+        provider_data = provider_dict
+    else:
+        provider_data = {}
+
+    # Convert to ConfigMap YAML format
+    yaml_output = model_converters.configmappo.to_configmappo({"provider": provider_data})
+    return yaml_output

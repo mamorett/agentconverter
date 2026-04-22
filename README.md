@@ -1,6 +1,6 @@
 # Agent Configuration Converter
 
-A Python package for converting agent configuration files between **Gemini**, **OpenCode**, **Qwen**, **Kilo**, **Nanobot**, and **Hermes** formats.
+A Python package for converting agent configuration files between **Gemini**, **OpenCode**, **Qwen**, **Kilo**, **Nanobot**, **Hermes**, and **LiteLLM ConfigMap** formats.
 
 ## Table of Contents
 
@@ -13,7 +13,7 @@ A Python package for converting agent configuration files between **Gemini**, **
 - [Usage Examples](#usage-examples)
 - [Conversion Matrix](#conversion-matrix)
 - [Format Specifications](#format-specifications)
-- [Nanobot & Hermes Details](#nanobot--hermes-details)
+- [Nanobot, Hermes & ConfigMap Details](#nanobot--hermes--configmap-details)
 - [Package Structure](#package-structure)
 - [Troubleshooting](#troubleshooting)
 
@@ -21,7 +21,7 @@ A Python package for converting agent configuration files between **Gemini**, **
 
 ## Overview
 
-This package converts configuration files between six popular agent frameworks:
+This package converts configuration files between seven popular agent frameworks:
 
 | Format | File Example | Primary Use |
 |--------|--------------|-------------|
@@ -31,6 +31,7 @@ This package converts configuration files between six popular agent frameworks:
 | **Kilo** | `kilo.json` | Kilo (OpenCode variant with permissions) |
 | **Nanobot** | `nanobot_config.json` | Nanobot agent configurations |
 | **Hermes** | `hermes_config.yaml` | Hermes agent configurations |
+| **ConfigMap** | `config.yaml` | LiteLLM Kubernetes ConfigMap (models only) |
 
 The converter supports:
 - **Full file conversion** - Convert entire configuration files
@@ -39,7 +40,7 @@ The converter supports:
 - **Auto-detection** - Automatically detect source format
 - **Diff mode** - Compare two files to find missing items
 
-> **Note:** Nanobot and Hermes conversions are **one-way only** (from other formats → Nanobot/Hermes). Conversions from Nanobot or Hermes to other formats are not supported.
+> **Note:** Nanobot, Hermes, and ConfigMap conversions are **one-way only** (from other formats → Nanobot/Hermes/ConfigMap). Conversions from these formats to other formats are not supported.
 
 ---
 
@@ -229,6 +230,9 @@ python3 agent_converter.py -i opencode.json -o qwen3_model.json -t qwen --model 
 
 # Convert models containing 'ollama' from Qwen to Hermes
 python3 agent_converter.py -i settings.json -o hermes_ollama.json -t hermes -s qwen --model ollama
+
+# Convert models to LiteLLM ConfigMap (YAML output)
+python3 agent_converter.py -i opencode.json -o config.yaml -t configmappo --section models
 ```
 
 ### 5. Output to stdout
