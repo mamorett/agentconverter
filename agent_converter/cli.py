@@ -12,6 +12,12 @@ from .conversion_orchestrator import convert_full_file, convert_section_only
 from .diff import compute_mcp_diff_full, compute_model_diff_full
 from .utils import load_json_file
 
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
@@ -243,22 +249,35 @@ def run_conversion_mode(args: argparse.Namespace) -> int:
     except Exception as e:
         print(f"Error during conversion: {e}", file=sys.stderr)
         return 1
-    
+
     # Output result
-    output_json = json.dumps(result, indent=2)
-    
+    # Hermes format uses YAML, others use JSON
+    if target_format == "hermes":
+        if YAML_AVAILABLE:
+            output_json = yaml.dump(result, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        else:
+            print("Warning: PyYAML not installed, falling back to JSON output for Hermes", file=sys.stderr)
+            output_json = json.dumps(result, indent=2)
+    else:
+        output_json = json.dumps(result, indent=2)
+
     # Default to stdout, write to file only if -o is specified
     if args.stdout or not args.output:
         print(output_json)
     else:
         try:
-            from .utils import save_json_file
-            save_json_file(result, args.output)
+            # For Hermes, write YAML directly instead of using save_json_file
+            if target_format == "hermes":
+                with open(args.output, "w") as f:
+                    f.write(output_json)
+            else:
+                from .utils import save_json_file
+                save_json_file(result, args.output)
             print(f"Conversion complete. Output written to: {args.output}", file=sys.stderr)
         except Exception as e:
             print(f"Error writing output file: {e}", file=sys.stderr)
             return 1
-    
+
     return 0
 
 

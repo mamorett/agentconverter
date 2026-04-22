@@ -61,17 +61,23 @@ def convert_to_opencode(data: dict, source_format: str) -> dict:
         "$schema": "https://opencode.ai/config.json",
         "autoupdate": True
     }
-    
+
     # MCP conversion
     if source_format == "opencode" and "mcp" in data:
         result["mcp"] = data["mcp"]
     elif source_format == "kilo" and "mcp" in data:
-        result["mcp"] = mcp_converters.kilo.from_kilo(data.get("mcp", {}))
+        # Kilo to generic, then generic to opencode
+        generic_mcp = mcp_converters.kilo.from_kilo(data.get("mcp", {}))
+        result["mcp"] = mcp_converters.opencode.to_opencode(generic_mcp)
     elif source_format == "gemini" and "mcpServers" in data:
-        result["mcp"] = mcp_converters.gemini.from_gemini(data.get("mcpServers", {}))
+        # Gemini to generic, then generic to opencode
+        generic_mcp = mcp_converters.gemini.from_gemini(data.get("mcpServers", {}))
+        result["mcp"] = mcp_converters.opencode.to_opencode(generic_mcp)
     elif source_format == "qwen" and "mcpServers" in data:
-        result["mcp"] = mcp_converters.qwen.from_qwen(data.get("mcpServers", {}))
-    
+        # Qwen to generic, then generic to opencode
+        generic_mcp = mcp_converters.qwen.from_qwen(data.get("mcpServers", {}))
+        result["mcp"] = mcp_converters.opencode.to_opencode(generic_mcp)
+
     # Models conversion
     if "provider" in data:
         if source_format == "opencode":
@@ -86,7 +92,7 @@ def convert_to_opencode(data: dict, source_format: str) -> dict:
         # Even if no provider in source, try to convert from Qwen modelProviders
         if source_format == "qwen" and "modelProviders" in data:
             result["provider"] = model_converters.qwen.from_qwen(data)
-    
+
     return result
 
 
@@ -144,17 +150,23 @@ def convert_to_kilo(data: dict, source_format: str) -> dict:
             "bash": "allow"
         }
     }
-    
+
     # MCP conversion
     if source_format == "kilo" and "mcp" in data:
         result["mcp"] = data["mcp"]
     elif source_format == "opencode" and "mcp" in data:
-        result["mcp"] = mcp_converters.opencode.from_opencode(data.get("mcp", {}))
+        # Opencode to generic, then generic to kilo
+        generic_mcp = mcp_converters.opencode.from_opencode(data.get("mcp", {}))
+        result["mcp"] = mcp_converters.kilo.to_kilo(generic_mcp)
     elif source_format == "gemini" and "mcpServers" in data:
-        result["mcp"] = mcp_converters.gemini.from_gemini(data.get("mcpServers", {}))
+        # Gemini to generic, then generic to kilo
+        generic_mcp = mcp_converters.gemini.from_gemini(data.get("mcpServers", {}))
+        result["mcp"] = mcp_converters.kilo.to_kilo(generic_mcp)
     elif source_format == "qwen" and "mcpServers" in data:
-        result["mcp"] = mcp_converters.qwen.from_qwen(data.get("mcpServers", {}))
-    
+        # Qwen to generic, then generic to kilo
+        generic_mcp = mcp_converters.qwen.from_qwen(data.get("mcpServers", {}))
+        result["mcp"] = mcp_converters.kilo.to_kilo(generic_mcp)
+
     # Models conversion
     if "provider" in data:
         if source_format == "kilo":
@@ -169,7 +181,7 @@ def convert_to_kilo(data: dict, source_format: str) -> dict:
         # Even if no provider in source, try to convert from Qwen modelProviders
         if source_format == "qwen" and "modelProviders" in data:
             result["provider"] = model_converters.qwen.from_qwen(data)
-    
+
     return result
 
 
@@ -253,18 +265,18 @@ def convert_to_hermes(data: dict, source_format: str) -> dict:
         }
     }
 
-    # MCP conversion - Hermes uses a list of server names
-    if source_format == "hermes" and "tools" in data and "mcpServers" in data.get("tools", {}):
-        result["tools"] = {"mcpServers": data["tools"]["mcpServers"]}
+    # MCP conversion - Hermes uses mcp_servers dict with full configurations
+    if source_format == "hermes" and "mcp_servers" in data:
+        result["mcp_servers"] = data["mcp_servers"]
     elif source_format == "opencode" and "mcp" in data:
-        result["tools"] = mcp_converters.hermes.to_hermes(data.get("mcp", {}))
+        result["mcp_servers"] = mcp_converters.hermes.to_hermes(data.get("mcp", {}))["mcp_servers"]
     elif source_format == "kilo" and "mcp" in data:
-        result["tools"] = mcp_converters.hermes.to_hermes(data.get("mcp", {}))
+        result["mcp_servers"] = mcp_converters.hermes.to_hermes(data.get("mcp", {}))["mcp_servers"]
     elif source_format == "gemini" and "mcpServers" in data:
-        result["tools"] = mcp_converters.hermes.to_hermes(data.get("mcpServers", {}))
+        result["mcp_servers"] = mcp_converters.hermes.to_hermes(data.get("mcpServers", {}))["mcp_servers"]
     elif source_format == "qwen" and "mcpServers" in data:
-        result["tools"] = mcp_converters.hermes.to_hermes(data.get("mcpServers", {}))
-    
+        result["mcp_servers"] = mcp_converters.hermes.to_hermes(data.get("mcpServers", {}))["mcp_servers"]
+
     # Models conversion
     if source_format == "opencode" and "provider" in data:
         provider_data = data.get("provider", {})
@@ -289,7 +301,7 @@ def convert_to_hermes(data: dict, source_format: str) -> dict:
         if hermes_models.get("model"):
             result["model"] = hermes_models["model"]
             result["provider"] = hermes_models["provider"]
-    
+
     return result
 
 
@@ -332,8 +344,8 @@ def convert_mcp_section(
     if target_format == "nanobot":
         return mcp_converters.nanobot.to_nanobot(mcp_data)
     elif target_format == "hermes":
-        # Hermes MCP format is a list, wrap it in tools structure
-        return {"tools": {"mcpServers": mcp_converters.hermes.to_hermes(mcp_data)}}
+        # Hermes MCP format uses mcp_servers dict with full configurations
+        return mcp_converters.hermes.to_hermes(mcp_data)
     elif target_format == "gemini":
         if source_format == "gemini":
             return {"mcpServers": mcp_data}
@@ -345,13 +357,19 @@ def convert_mcp_section(
             return {"mcpServers": mcp_converters.qwen.from_qwen(mcp_data)}
     elif target_format == "opencode":
         if source_format == "gemini":
-            return {"mcp": mcp_converters.gemini.from_gemini(mcp_data)}
+            # Gemini to generic, then generic to opencode
+            generic_mcp = mcp_converters.gemini.from_gemini(mcp_data)
+            return {"mcp": mcp_converters.opencode.to_opencode(generic_mcp)}
         elif source_format == "opencode":
             return {"mcp": mcp_data}
         elif source_format == "kilo":
-            return {"mcp": mcp_converters.kilo.from_kilo(mcp_data)}
+            # Kilo to generic, then generic to opencode
+            generic_mcp = mcp_converters.kilo.from_kilo(mcp_data)
+            return {"mcp": mcp_converters.opencode.to_opencode(generic_mcp)}
         elif source_format == "qwen":
-            return {"mcp": mcp_converters.qwen.from_qwen(mcp_data)}
+            # Qwen to generic, then generic to opencode
+            generic_mcp = mcp_converters.qwen.from_qwen(mcp_data)
+            return {"mcp": mcp_converters.opencode.to_opencode(generic_mcp)}
     elif target_format == "qwen":
         if source_format == "gemini":
             return {"mcpServers": mcp_converters.gemini.from_gemini(mcp_data)}
@@ -370,7 +388,22 @@ def convert_mcp_section(
             return {"mcp": mcp_data}
         elif source_format == "qwen":
             return {"mcp": mcp_converters.qwen.from_qwen(mcp_data)}
-    
+    elif target_format == "kilo":
+        if source_format == "gemini":
+            # Gemini to generic, then generic to kilo
+            generic_mcp = mcp_converters.gemini.from_gemini(mcp_data)
+            return {"mcp": mcp_converters.kilo.to_kilo(generic_mcp)}
+        elif source_format == "opencode":
+            # Opencode to generic, then generic to kilo
+            generic_mcp = mcp_converters.opencode.from_opencode(mcp_data)
+            return {"mcp": mcp_converters.kilo.to_kilo(generic_mcp)}
+        elif source_format == "kilo":
+            return {"mcp": mcp_data}
+        elif source_format == "qwen":
+            # Qwen to generic, then generic to kilo
+            generic_mcp = mcp_converters.qwen.from_qwen(mcp_data)
+            return {"mcp": mcp_converters.kilo.to_kilo(generic_mcp)}
+
     return {}
 
 
