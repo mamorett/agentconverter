@@ -1,6 +1,6 @@
 # Agent Configuration Converter
 
-A Python script for converting agent configuration files between **Gemini**, **OpenCode**, **Qwen**, **Kilo**, **Nanobot**, and **Hermes** formats.
+A Python package for converting agent configuration files between **Gemini**, **OpenCode**, **Qwen**, **Kilo**, **Nanobot**, and **Hermes** formats.
 
 ## Table of Contents
 
@@ -14,13 +14,14 @@ A Python script for converting agent configuration files between **Gemini**, **O
 - [Conversion Matrix](#conversion-matrix)
 - [Format Specifications](#format-specifications)
 - [Nanobot & Hermes Details](#nanobot--hermes-details)
+- [Package Structure](#package-structure)
 - [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Overview
 
-This script converts configuration files between six popular agent frameworks:
+This package converts configuration files between six popular agent frameworks:
 
 | Format | File Example | Primary Use |
 |--------|--------------|-------------|
@@ -79,13 +80,13 @@ All formats support MCP (Model Context Protocol) servers with the following mapp
 
 ## Installation
 
-1. **Clone or copy the script:**
+1. **Clone or copy the repository:**
 
 ```bash
 cd /gorgon/ia/agentconverter
 ```
 
-2. **Make it executable (optional):**
+2. **Make the script executable (optional):**
 
 ```bash
 chmod +x agent_converter.py
@@ -95,6 +96,14 @@ chmod +x agent_converter.py
 
 ```bash
 python3 --version  # Should show Python 3.10 or higher
+```
+
+### Running as a Module
+
+You can also run the package as a Python module:
+
+```bash
+python3 -m agent_converter -i input.json -t qwen
 ```
 
 ---
@@ -298,7 +307,7 @@ python3 agent_converter.py -i kilo.json -o to_nanobot.json -t nanobot -s kilo
 | **Nanobot** | ✗ | ✗ | ✗ | ✗ | - | - |
 | **Hermes** | ✗ | ✗ | ✗ | ✗ | - | - |
 
-> **Note:** 
+> **Note:**
 > - Gemini format does not have a models section. Conversions to Gemini for models will produce empty results.
 > - Nanobot and Hermes are **one-way target formats only** - you cannot convert FROM them to other formats.
 
@@ -560,6 +569,44 @@ Nanobot and Hermes are **target-only formats**. You can convert FROM any format 
 | Format | `providers` dict + `agents.defaults` | `model.default` + `provider` string |
 | Multiple providers | All preserved | First model used as default |
 | API keys | Empty placeholders | Not included |
+
+---
+
+## Package Structure
+
+The code is organized as a modular Python package:
+
+```
+agent_converter/
+├── __init__.py              # Package initialization
+├── __main__.py              # Entry point for `python -m agent_converter`
+├── cli.py                   # CLI argument parsing and main entry point
+├── conversion_orchestrator.py  # Main conversion logic
+├── diff.py                  # Diff comparison functions
+├── format_detection.py      # Format detection utilities
+├── utils.py                 # File I/O and helper functions
+├── mcp_converters/          # MCP format converters
+│   ├── __init__.py
+│   ├── gemini.py
+│   ├── opencode.py
+│   ├── qwen.py
+│   ├── kilo.py
+│   ├── nanobot.py
+│   └── hermes.py
+└── model_converters/        # Model format converters
+    ├── __init__.py
+    ├── gemini.py
+    ├── opencode.py
+    ├── qwen.py
+    ├── kilo.py
+    ├── nanobot.py
+    └── hermes.py
+```
+
+Each format has its own converter module, making it easy to:
+- Add support for new formats
+- Test individual converters
+- Maintain format-specific logic
 
 ---
 
