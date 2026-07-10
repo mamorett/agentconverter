@@ -19,96 +19,110 @@ except ImportError:
     YAML_AVAILABLE = False
 
 
+class FriendlyArgumentParser(argparse.ArgumentParser):
+    """Custom ArgumentParser that shows full help when errors occur."""
+    def error(self, message):
+        sys.stderr.write(f"Error: {message}\n\n")
+        self.print_help()
+        sys.exit(2)
+
+
 def parse_args() -> argparse.Namespace:
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Convert agent configuration between Gemini, OpenCode, Qwen, Kilo, and LiteLLM ConfigMap formats.",
+    """Parse command line arguments with clear and structured help."""
+    parser = FriendlyArgumentParser(
+        description="Convert agent configuration files between different formats (Gemini, OpenCode, Qwen, Kilo, Nanobot, Hermes, ConfigMap, Vibe).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  Convert full file:
-    %(prog)s -i gemini_settings.json -o output.json -t qwen
+Modes of Operation:
+  1. Conversion Mode:
+     Convert configuration file from one format to another.
+     Example:
+       python3 agent_converter.py --input gemini_settings.json --target vibe --output config.toml
 
-  Convert only MCP section:
-    %(prog)s -i gemini_settings.json -o output.json -t opencode --section mcp
+  2. Filtered Conversion Mode:
+     Convert only specific parts (e.g. only MCP servers or specific models).
+     Example:
+       python3 agent_converter.py --input opencode.json --target qwen --section mcp
+       python3 agent_converter.py --input settings.json --target hermes --model ollama
 
-  Convert specific MCP server:
-    %(prog)s -i gemini_settings.json -o output.json -t qwen --mcp github
-
-  Convert specific model:
-    %(prog)s -i opencode.json -o output.json -t qwen --model qwen3:14b
-
-  Auto-detect source format:
-    %(prog)s -i config.json -o output.json -t gemini
-
-  Specify source format explicitly:
-    %(prog)s -i config.json -o output.json -t qwen -s opencode
-
-  Diff mode - compare two files of same format:
-    %(prog)s -i file1.json --target-input file2.json --diff -s qwen -o diff_report.txt
-
-  Diff mode with auto-detection:
-    %(prog)s -i opencode.json --target-input opencode_backup.json --diff
-        """
+  3. Diff Mode:
+     Compare two files of the same format and output the missing items (source vs target-input).
+     Example:
+       python3 agent_converter.py --input file1.json --target-input file2.json --diff
+"""
     )
-    
-    parser.add_argument(
+
+    # Custom groups for better layout
+    required = parser.add_argument_group("Required Arguments")
+    required.add_argument(
         "-i", "--input",
         required=True,
-        help="Input configuration file path"
-    )
-    
-    parser.add_argument(
-        "-o", "--output",
-        help="Output file path (optional - defaults to stdout)"
-    )
-    
-    parser.add_argument(
-        "-t", "--target",
-        choices=["gemini", "opencode", "qwen", "kilo", "nanobot", "hermes", "configmappo"],
-        help="Target format (required unless using --diff). Note: configmappo is models-only (YAML output)"
+        metavar="PATH",
+        help="Path to the input configuration file"
     )
 
-    parser.add_argument(
+    conversion = parser.add_argument_group("Conversion Options")
+    conversion.add_argument(
+        "-t", "--target",
+        metavar="FORMAT",
+        choices=["gemini", "opencode", "qwen", "kilo", "nanobot", "hermes", "configmappo", "vibe"],
+        help="Target format to convert into. Supported: gemini, opencode, qwen, kilo, nanobot, hermes, configmappo, vibe"
+    )
+    conversion.add_argument(
         "-s", "--source",
-        choices=["gemini", "opencode", "qwen", "kilo", "nanobot", "hermes", "configmappo", "auto"],
+        metavar="FORMAT",
         default="auto",
-        help="Source format (default: auto-detect)"
+        choices=["gemini", "opencode", "qwen", "kilo", "nanobot", "hermes", "configmappo", "auto"],
+        help="Source format. If set to 'auto' (default), the tool automatically detects the input format"
     )
-    
-    parser.add_argument(
+
+    filtering = parser.add_argument_group("Filtering / Partial Conversion Options")
+    filtering.add_argument(
         "--section",
+        metavar="SECTION",
         choices=["mcp", "models"],
-        help="Convert only a specific section (mcp or models)"
+        help="Convert only a specific section: 'mcp' or 'models'"
     )
-    
-    parser.add_argument(
+    filtering.add_argument(
         "--mcp",
-        help="Convert only a specific MCP server by name"
+        metavar="NAME",
+        help="Convert only a specific MCP server by its name"
     )
-    
-    parser.add_argument(
+    filtering.add_argument(
         "--model",
+        metavar="ID",
         help="Convert only models matching this model ID"
     )
-    
-    parser.add_argument(
+
+    output = parser.add_argument_group("Output Options")
+    output.add_argument(
+        "-o", "--output",
+        metavar="PATH",
+        help="Path to write the output file. If omitted, prints to stdout"
+    )
+    output.add_argument(
         "--stdout",
         action="store_true",
-        help="Output to stdout instead of file"
+        help="Force printing output to stdout even if --output is specified"
     )
-    
-    parser.add_argument(
-        "--target-input",
-        help="For diff mode: second input file to compare against (source vs target)"
-    )
-    
-    parser.add_argument(
+
+    diff = parser.add_argument_group("Diff / Comparison Options")
+    diff.add_argument(
         "--diff",
         action="store_true",
-        help="Diff mode: compare source with target input file (when formats are the same)"
+        help="Enable diff mode to find items missing in --target-input compared to --input"
     )
-    
+    diff.add_argument(
+        "--target-input",
+        metavar="PATH",
+        help="The second configuration file to compare against (used only in --diff mode)"
+    )
+
+    # Show help and exit if no arguments are provided
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(0)
+
     return parser.parse_args()
 
 
@@ -251,8 +265,10 @@ def run_conversion_mode(args: argparse.Namespace) -> int:
         return 1
 
     # Output result
-    # Hermes and ConfigMap formats use YAML, others use JSON
-    if target_format in ["hermes", "configmappo"]:
+    # Hermes and ConfigMap formats use YAML, vibe uses TOML, others use JSON
+    if target_format == "vibe":
+        output_json = result
+    elif target_format in ["hermes", "configmappo"]:
         if YAML_AVAILABLE:
             # For configmappo, result is already a YAML string
             if target_format == "configmappo" and isinstance(result, str):
@@ -270,8 +286,8 @@ def run_conversion_mode(args: argparse.Namespace) -> int:
         print(output_json)
     else:
         try:
-            # For Hermes and ConfigMap, write YAML directly instead of using save_json_file
-            if target_format in ["hermes", "configmappo"]:
+            # For Hermes, ConfigMap, and Vibe, write string directly instead of using save_json_file
+            if target_format in ["hermes", "configmappo", "vibe"]:
                 with open(args.output, "w") as f:
                     f.write(output_json)
             else:

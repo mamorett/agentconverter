@@ -28,6 +28,8 @@ def convert_full_file(data: dict, source_format: str, target_format: str) -> dic
         return convert_to_hermes(data, source_format)
     elif target_format == "configmappo":
         return convert_to_configmappo(data, source_format)
+    elif target_format == "vibe":
+        return convert_to_vibe(data, source_format)
     else:
         raise ValueError(f"Unknown target format: {target_format}")
 
@@ -313,6 +315,71 @@ def convert_to_configmappo(data: dict, source_format: str) -> str:
     return convert_models_to_configmappo(data, source_format, None)
 
 
+def convert_to_vibe(data: dict, source_format: str) -> str:
+    """Convert to Vibe format (TOML string output)."""
+    # 1. MCP conversion
+    mcp_generic = {}
+    if source_format == "gemini" and "mcpServers" in data:
+        mcp_generic = mcp_converters.gemini.from_gemini(data.get("mcpServers", {}))
+    elif source_format == "opencode" and "mcp" in data:
+        mcp_generic = mcp_converters.opencode.from_opencode(data.get("mcp", {}))
+    elif source_format == "kilo" and "mcp" in data:
+        mcp_generic = mcp_converters.kilo.from_kilo(data.get("mcp", {}))
+    elif source_format == "qwen" and "mcpServers" in data:
+        mcp_generic = mcp_converters.qwen.from_qwen(data.get("mcpServers", {}))
+
+    mcp_vibe = mcp_converters.vibe.to_vibe(mcp_generic)
+
+    # 2. Models & Providers conversion
+    provider_data = {}
+    if source_format == "opencode" and "provider" in data:
+        provider_data = data.get("provider", {})
+    elif source_format == "kilo" and "provider" in data:
+        provider_data = data.get("provider", {})
+    elif source_format == "qwen" and "modelProviders" in data:
+        model_providers = data.get("modelProviders", {})
+        provider_dict = {}
+        for provider_key, models_list in model_providers.items():
+            # If Qwen modelProviders list is a direct array or {models: [...]}:
+            if isinstance(models_list, dict):
+                models_list = models_list.get("models", [])
+            provider_dict[provider_key] = {"models": {m.get("id", ""): m for m in models_list if isinstance(m, dict)}}
+        provider_data = provider_dict
+
+    models_vibe = model_converters.vibe.to_vibe(provider_data)
+
+    # 3. Build top-level and general settings
+    result = {}
+    if mcp_vibe:
+        result["mcp_servers"] = mcp_vibe
+
+    if models_vibe:
+        result["providers"] = models_vibe.get("providers", [])
+        result["models"] = models_vibe.get("models", [])
+        if "active_model" in models_vibe:
+            result["active_model"] = models_vibe["active_model"]
+
+    # Set default agent
+    result["default_agent"] = "plan"
+
+    # Map settings from source formats
+    if source_format in ["opencode", "kilo"] and "autoupdate" in data:
+        result["enable_auto_update"] = data["autoupdate"]
+
+    # Map general settings from Gemini or Qwen if present
+    general = data.get("general", {})
+    if isinstance(general, dict):
+        if "enable_auto_update" in general:
+            result["enable_auto_update"] = general["enable_auto_update"]
+        if "enable_notifications" in general:
+            result["enable_notifications"] = general["enable_notifications"]
+        if "enable_telemetry" in general:
+            result["enable_telemetry"] = general["enable_telemetry"]
+
+    # Return as TOML string
+    return model_converters.vibe.to_vibe_toml(result)
+
+
 def convert_section_only(
     data: dict,
     source_format: str,
@@ -354,6 +421,19 @@ def convert_mcp_section(
     elif target_format == "hermes":
         # Hermes MCP format uses mcp_servers dict with full configurations
         return mcp_converters.hermes.to_hermes(mcp_data)
+    elif target_format == "vibe":
+        if source_format == "gemini":
+            generic_mcp = mcp_converters.gemini.from_gemini(mcp_data)
+        elif source_format == "opencode":
+            generic_mcp = mcp_converters.opencode.from_opencode(mcp_data)
+        elif source_format == "kilo":
+            generic_mcp = mcp_converters.kilo.from_kilo(mcp_data)
+        elif source_format == "qwen":
+            generic_mcp = mcp_converters.qwen.from_qwen(mcp_data)
+        else:
+            generic_mcp = mcp_data
+        mcp_vibe = mcp_converters.vibe.to_vibe(generic_mcp)
+        return model_converters.vibe.to_vibe_toml({"mcp_servers": mcp_vibe})
     elif target_format == "gemini":
         if source_format == "gemini":
             return {"mcpServers": mcp_data}
@@ -428,6 +508,8 @@ def convert_models_section(
         return convert_models_to_hermes(data, source_format, specific_model)
     elif target_format == "configmappo":
         return convert_models_to_configmappo(data, source_format, specific_model)
+    elif target_format == "vibe":
+        return convert_models_to_vibe(data, source_format, specific_model)
 
     if source_format == "gemini":
         return {}
@@ -618,3 +700,41 @@ def convert_models_to_configmappo(
     # Convert to ConfigMap YAML format
     yaml_output = model_converters.configmappo.to_configmappo({"provider": provider_data})
     return yaml_output
+
+
+def convert_models_to_vibe(
+    data: dict,
+    source_format: str,
+    specific_model: str | None = None
+) -> str:
+    """Convert models section to Vibe format."""
+    # Get provider data based on source format
+    if source_format == "opencode":
+        provider_data = data.get("provider", {})
+        provider_data = filter_opencode_models_by_id(provider_data, specific_model)
+    elif source_format == "kilo":
+        provider_data = data.get("provider", {})
+        provider_data = filter_opencode_models_by_id(provider_data, specific_model)
+    elif source_format == "qwen":
+        model_providers = data.get("modelProviders", {})
+        # Reconstruct provider dict for conversion
+        provider_dict = {}
+        for provider_key, models_list in model_providers.items():
+            if isinstance(models_list, dict):
+                models_list = models_list.get("models", [])
+            provider_dict[provider_key] = {"models": {m.get("id", ""): m for m in models_list if isinstance(m, dict)}}
+        provider_data = provider_dict
+    else:
+        provider_data = {}
+
+    models_vibe = model_converters.vibe.to_vibe(provider_data)
+
+    # We want only the providers, models, and active_model in the TOML output
+    result = {}
+    if models_vibe:
+        result["providers"] = models_vibe.get("providers", [])
+        result["models"] = models_vibe.get("models", [])
+        if "active_model" in models_vibe:
+            result["active_model"] = models_vibe["active_model"]
+
+    return model_converters.vibe.to_vibe_toml(result)

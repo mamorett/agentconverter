@@ -1,6 +1,6 @@
 # Agent Configuration Converter
 
-A Python package for converting agent configuration files between **Gemini**, **OpenCode**, **Qwen**, **Kilo**, **Nanobot**, **Hermes**, and **LiteLLM ConfigMap** formats.
+A Python package for converting agent configuration files between **Gemini**, **OpenCode**, **Qwen**, **Kilo**, **Nanobot**, **Hermes**, **LiteLLM ConfigMap**, and **Mistral Vibe** formats.
 
 ## Table of Contents
 
@@ -13,7 +13,7 @@ A Python package for converting agent configuration files between **Gemini**, **
 - [Usage Examples](#usage-examples)
 - [Conversion Matrix](#conversion-matrix)
 - [Format Specifications](#format-specifications)
-- [Nanobot, Hermes & ConfigMap Details](#nanobot--hermes--configmap-details)
+- [Nanobot, Hermes, ConfigMap & Vibe Details](#nanobot--hermes--configmap--vibe-details)
 - [Package Structure](#package-structure)
 - [Troubleshooting](#troubleshooting)
 
@@ -21,7 +21,7 @@ A Python package for converting agent configuration files between **Gemini**, **
 
 ## Overview
 
-This package converts configuration files between seven popular agent frameworks:
+This package converts configuration files between eight popular agent frameworks:
 
 | Format | File Example | Primary Use |
 |--------|--------------|-------------|
@@ -32,6 +32,7 @@ This package converts configuration files between seven popular agent frameworks
 | **Nanobot** | `nanobot_config.json` | Nanobot agent configurations |
 | **Hermes** | `hermes_config.yaml` | Hermes agent configurations |
 | **ConfigMap** | `config.yaml` | LiteLLM Kubernetes ConfigMap (models only) |
+| **Vibe** | `config.toml` | Mistral Vibe Code CLI configurations |
 
 The converter supports:
 - **Full file conversion** - Convert entire configuration files
@@ -40,7 +41,7 @@ The converter supports:
 - **Auto-detection** - Automatically detect source format
 - **Diff mode** - Compare two files to find missing items
 
-> **Note:** Nanobot, Hermes, and ConfigMap conversions are **one-way only** (from other formats → Nanobot/Hermes/ConfigMap). Conversions from these formats to other formats are not supported.
+> **Note:** Nanobot, Hermes, ConfigMap, and Vibe conversions are **one-way only** (from other formats → Nanobot/Hermes/ConfigMap/Vibe). Conversions from these formats to other formats are not supported.
 
 ---
 
@@ -58,6 +59,7 @@ All formats support MCP (Model Context Protocol) servers with the following mapp
 | **Kilo** | `mcp` | `command` (array, combined) | `environment` (object) |
 | **Nanobot** | `tools.mcpServers` | `command` (string) + `args` (array) | `env` (object) |
 | **Hermes** | `tools.mcpServers` | List of server names only | N/A |
+| **Vibe** | `mcp_servers` | `command` (string) + `args` (array) | `env` (object) |
 
 ### Models Conversion
 
@@ -69,6 +71,7 @@ All formats support MCP (Model Context Protocol) servers with the following mapp
 | **Kilo** | `provider.<name>.models` | Same as OpenCode |
 | **Nanobot** | `providers` + `agents.defaults` | Simplified provider config |
 | **Hermes** | `model.default` + `provider` | Single default model |
+| **Vibe** | `providers` + `models` | Custom providers and models list |
 
 ---
 
@@ -126,7 +129,7 @@ python3 agent_converter.py -i settings.json -o hermes_output.json -t hermes -s q
 
 The source format is auto-detected by default. Use `-s` to specify explicitly.
 
-### One-Way Conversions (to Nanobot/Hermes)
+### One-Way Conversions (to Nanobot/Hermes/ConfigMap/Vibe)
 
 ```bash
 # Any format → Nanobot (MCP + models)
@@ -134,6 +137,9 @@ python3 agent_converter.py -i opencode.json -t nanobot --stdout
 
 # Any format → Hermes (MCP + models)
 python3 agent_converter.py -i settings.json -t hermes --stdout -s qwen
+
+# Any format → Vibe (MCP + models)
+python3 agent_converter.py -i settings.json -t vibe --stdout -s qwen
 ```
 
 ---
@@ -141,14 +147,14 @@ python3 agent_converter.py -i settings.json -t hermes --stdout -s qwen
 ## Command Line Options
 
 ```
-usage: agent_converter.py [-h] -i INPUT -o OUTPUT -t {gemini,opencode,qwen,kilo,nanobot,hermes}
-                          [-s {gemini,opencode,qwen,kilo,nanobot,hermes,auto}]
+usage: agent_converter.py [-h] -i INPUT -o OUTPUT -t {gemini,opencode,qwen,kilo,nanobot,hermes,configmappo,vibe}
+                          [-s {gemini,opencode,qwen,kilo,nanobot,hermes,configmappo,auto}]
                           [--section {mcp,models}] [--mcp MCP] [--model MODEL] [--stdout]
 
 Options:
   -i, --input INPUT       Input configuration file path (required)
   -o, --output OUTPUT     Output file path (optional - defaults to stdout)
-  -t, --target TARGET     Target format: gemini, opencode, qwen, kilo, nanobot, or hermes
+  -t, --target TARGET     Target format: gemini, opencode, qwen, kilo, nanobot, hermes, configmappo, or vibe
   -s, --source SOURCE     Source format: auto-detect or explicitly specify
   --section SECTION       Convert only a specific section: mcp or models
   --mcp MCP               Convert only a specific MCP server by name
@@ -165,7 +171,7 @@ When `--diff` is used with `--target-input`, the script compares two files of th
 
 **Output is to stdout by default** - use `-o` to write to a file.
 
-> **Note:** Diff mode is not supported for Nanobot and Hermes as they are one-way target formats only.
+> **Note:** Diff mode is not supported for Nanobot, Hermes, ConfigMap, and Vibe as they are one-way target formats only.
 
 ---
 
@@ -287,14 +293,15 @@ python3 agent_converter.py -i kilo.json -o to_nanobot.json -t nanobot -s kilo
 
 ### MCP Server Conversions (All Supported)
 
-| From → To | Gemini | OpenCode | Qwen | Kilo | Nanobot | Hermes |
-|-----------|--------|----------|------|------|---------|--------|
-| **Gemini** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **OpenCode** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **Qwen** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **Kilo** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **Nanobot** | ✗ | ✗ | ✗ | ✗ | - | - |
-| **Hermes** | ✗ | ✗ | ✗ | ✗ | - | - |
+| From → To | Gemini | OpenCode | Qwen | Kilo | Nanobot | Hermes | Vibe |
+|-----------|--------|----------|------|------|---------|--------|------|
+| **Gemini** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **OpenCode** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Qwen** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Kilo** | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Nanobot** | ✗ | ✗ | ✗ | ✗ | - | - | ✗ |
+| **Hermes** | ✗ | ✗ | ✗ | ✗ | - | - | ✗ |
+| **Vibe** | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | - |
 
 > **✓** = Supported conversion
 > **✗** = Not supported (one-way target only)
@@ -302,18 +309,19 @@ python3 agent_converter.py -i kilo.json -o to_nanobot.json -t nanobot -s kilo
 
 ### Model Conversions
 
-| From → To | Gemini | OpenCode | Qwen | Kilo | Nanobot | Hermes |
-|-----------|--------|----------|------|------|---------|--------|
-| **Gemini** | N/A | ✓ (empty) | ✓ (empty) | ✓ (empty) | ✓ (empty) | ✓ (empty) |
-| **OpenCode** | ✓ (empty) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **Qwen** | ✓ (empty) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **Kilo** | ✓ (empty) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **Nanobot** | ✗ | ✗ | ✗ | ✗ | - | - |
-| **Hermes** | ✗ | ✗ | ✗ | ✗ | - | - |
+| From → To | Gemini | OpenCode | Qwen | Kilo | Nanobot | Hermes | Vibe |
+|-----------|--------|----------|------|------|---------|--------|------|
+| **Gemini** | N/A | ✓ (empty) | ✓ (empty) | ✓ (empty) | ✓ (empty) | ✓ (empty) | ✓ (empty) |
+| **OpenCode** | ✓ (empty) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Qwen** | ✓ (empty) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Kilo** | ✓ (empty) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Nanobot** | ✗ | ✗ | ✗ | ✗ | - | - | ✗ |
+| **Hermes** | ✗ | ✗ | ✗ | ✗ | - | - | ✗ |
+| **Vibe** | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | - |
 
 > **Note:**
 > - Gemini format does not have a models section. Conversions to Gemini for models will produce empty results.
-> - Nanobot and Hermes are **one-way target formats only** - you cannot convert FROM them to other formats.
+> - Nanobot, Hermes, ConfigMap, and Vibe are **one-way target formats only** - you cannot convert FROM them to other formats.
 
 ---
 
@@ -536,43 +544,83 @@ tools:
 
 > **Note:** Hermes MCP format is a simple list of server names, not full server configurations.
 
+### Vibe Format (`config.toml`)
+
+```toml
+default_agent = "plan"
+active_model = "devstral-openrouter"
+enable_auto_update = true
+
+[[providers]]
+name = "openrouter"
+api_base = "https://openrouter.ai/api/v1"
+api_key_env_var = "OPENROUTER_API_KEY"
+api_style = "openai"
+backend = "generic"
+
+[[models]]
+name = "mistralai/devstral-2512:free"
+provider = "openrouter"
+alias = "devstral-openrouter"
+
+[[mcp_servers]]
+name = "my-mcp-server"
+transport = "stdio"
+command = "npx"
+args = ["-y", "@example/mcp-server@latest"]
+env = {KEY = "value"}
+```
+
+**Conversion output includes:**
+- `default_agent` - Defaults to `"plan"`
+- `active_model` - Defaults to the first converted model alias
+- `enable_auto_update` - Preserves auto-update preference from source formats (mapped from `autoupdate` or `general.enable_auto_update`)
+- `[[providers]]` - Provider configuration with `api_base`, generated `api_key_env_var` name, `api_style = "openai"`, and `backend = "generic"`
+- `[[models]]` - List of custom models matching the providers
+- `[[mcp_servers]]` - List of MCP server configurations (with command, args, and env variables)
+
 ---
 
-## Nanobot & Hermes Details
+## Nanobot, Hermes & Vibe Details
 
 ### One-Way Conversion
 
-Nanobot and Hermes are **target-only formats**. You can convert FROM any format TO Nanobot or Hermes, but NOT the reverse.
+Nanobot, Hermes, ConfigMap, and Vibe are **target-only formats**. You can convert FROM any format TO these targets, but NOT the reverse.
 
 **Supported conversions:**
 - Gemini → Nanobot ✓
 - Gemini → Hermes ✓
+- Gemini → Vibe ✓
 - OpenCode → Nanobot ✓
 - OpenCode → Hermes ✓
+- OpenCode → Vibe ✓
 - Qwen → Nanobot ✓
 - Qwen → Hermes ✓
+- Qwen → Vibe ✓
 - Kilo → Nanobot ✓
 - Kilo → Hermes ✓
+- Kilo → Vibe ✓
 
 **Not supported:**
 - Nanobot → Any format ✗
 - Hermes → Any format ✗
+- Vibe → Any format ✗
 
 ### MCP Conversion Differences
 
-| Feature | Nanobot | Hermes |
-|---------|---------|--------|
-| Format | Full server config (command, args, env) | Simple list of server names |
-| Environment | Preserved | Not applicable |
-| Use case | Direct config migration | Enable/disable server list |
+| Feature | Nanobot | Hermes | Vibe |
+|---------|---------|--------|------|
+| Format | Full server config (command, args, env) | Simple list of server names | Full server config (command, args, env) |
+| Environment | Preserved | Not applicable | Preserved |
+| Use case | Direct config migration | Enable/disable server list | Direct config migration |
 
 ### Model Conversion Differences
 
-| Feature | Nanobot | Hermes |
-|---------|---------|--------|
-| Format | `providers` dict + `agents.defaults` | `model.default` + `provider` string |
-| Multiple providers | All preserved | First model used as default |
-| API keys | Empty placeholders | Not included |
+| Feature | Nanobot | Hermes | Vibe |
+|---------|---------|--------|------|
+| Format | `providers` dict + `agents.defaults` | `model.default` + `provider` string | `providers` list + `models` list |
+| Multiple providers | All preserved | First model used as default | All preserved |
+| API keys | Empty placeholders | Not included | API key env var generated |
 
 ---
 
@@ -596,7 +644,8 @@ agent_converter/
 │   ├── qwen.py
 │   ├── kilo.py
 │   ├── nanobot.py
-│   └── hermes.py
+│   ├── hermes.py
+│   └── vibe.py
 └── model_converters/        # Model format converters
     ├── __init__.py
     ├── gemini.py
@@ -604,7 +653,8 @@ agent_converter/
     ├── qwen.py
     ├── kilo.py
     ├── nanobot.py
-    └── hermes.py
+    ├── hermes.py
+    └── vibe.py
 ```
 
 Each format has its own converter module, making it easy to:
@@ -637,7 +687,7 @@ ls -la gemini_settings.json
 **Check:** Ensure the source file has the correct structure. Use `--section mcp` if needed.
 
 #### "Unknown target format"
-**Solution:** Ensure you're using a valid target: `gemini`, `opencode`, `qwen`, `kilo`, `nanobot`, or `hermes`.
+**Solution:** Ensure you're using a valid target: `gemini`, `opencode`, `qwen`, `kilo`, `nanobot`, `hermes`, `configmappo`, or `vibe`.
 
 ### Debug Tips
 
@@ -701,4 +751,4 @@ This script is provided as-is for converting between agent configuration formats
 
 ## Author
 
-Created for converting between Gemini, OpenCode, Qwen, Kilo, Nanobot, and Hermes agent configurations.
+Created for converting between Gemini, OpenCode, Qwen, Kilo, Nanobot, Hermes, LiteLLM ConfigMap, and Mistral Vibe agent configurations.
